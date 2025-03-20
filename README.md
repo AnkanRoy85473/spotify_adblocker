@@ -12,7 +12,7 @@ A lightweight Python script to block Spotify advertisements on macOS while maint
 
 ## Prerequisites
 
-- Windows 10/11 or macOS
+- macOS
 - Python 3.6 or higher
 - Administrative privileges
 - Spotify desktop application
@@ -23,5 +23,5 @@ A lightweight Python script to block Spotify advertisements on macOS while maint
 2. Install required packages:
 ```bash
 pip install psutil
-git clone https://github.com/AnkanRoy85473/spotify-adblocker.git
-cd spotify-adblocker
+git clone https://github.com/AnkanRoy85473/spotify_adblocker.git
+cd spotify_adblocker
