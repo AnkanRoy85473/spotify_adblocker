@@ -1,13 +1,13 @@
 import subprocess
 import time
 import os
-import sys
+from AppKit import NSWorkspace
 import psutil
 
 class SpotifyAdBlocker:
     def __init__(self):
-        self.spotify_bundle = "com.spotify.client" if sys.platform == "darwin" else "Spotify.exe"
-        self.hosts_path = "/etc/hosts" if sys.platform != "win32" else r"C:\Windows\System32\drivers\etc\hosts"
+        self.spotify_bundle = "com.spotify.client"
+        self.hosts_path = "/etc/hosts"
         self.ad_domains = [
             "adclick.g.doubleclick.net",
             "googleads.g.doubleclick.net",
@@ -27,41 +27,23 @@ class SpotifyAdBlocker:
             "video-fa.scdn.co",
             "audio-sp-*.spotifycdn.net"
         ]
-        self.audio2 = "audio2.spotify.com"
-        self.audio4 = "audio4-fa.spotify.com"
-        self.crashdump = "crashdump.spotify.com"
-        self.desktop = "desktop.spotify.com"
-        self.log = "log.spotify.com"
-        self.metrics = "metrics.spotify.com"
-        self.weighted = "weighted-ads-creatives.spotify.com"
-        
+
     def is_spotify_running(self):
-        try:
-            processes = [p.name() for p in psutil.process_iter(['name'])]
-            return 'Spotify' in processes or 'Spotify.exe' in processes
-        except:
-            return False
+        return NSWorkspace.sharedWorkspace().runningApplications().filteredArrayUsingPredicate_(
+            NSPredicate.predicateWithFormat_("bundleIdentifier == %@", self.spotify_bundle)
+        ).count() > 0
 
     def block_ads(self):
         try:
-            # Check admin privileges
-            if sys.platform == "win32":
-                import ctypes
-                if not ctypes.windll.shell32.IsUserAnAdmin():
-                    print("Please run as administrator")
-                    return False
-            else:
-                if os.geteuid() != 0:
-                    print("Please run with sudo privileges")
-                    return False
+            # Check if running as root
+            if os.geteuid() != 0:
+                print("Please run this script with sudo privileges")
+                return False
 
             # Backup hosts file
-            backup_path = self.hosts_path + ".backup"
+            backup_path = "/etc/hosts.backup"
             if not os.path.exists(backup_path):
-                if sys.platform == "win32":
-                    subprocess.run(["copy", self.hosts_path, backup_path], shell=True)
-                else:
-                    subprocess.run(["cp", self.hosts_path, backup_path])
+                subprocess.run(["cp", self.hosts_path, backup_path])
 
             # Read existing hosts
             with open(self.hosts_path, 'r') as f:
@@ -78,12 +60,9 @@ class SpotifyAdBlocker:
                     f.write("\n# Spotify Ad Blocker\n")
                     f.write("\n".join(new_entries) + "\n")
 
-            # Flush DNS cache based on OS
-            if sys.platform == "win32":
-                subprocess.run(["ipconfig", "/flushdns"], shell=True)
-            else:
-                subprocess.run(["dscacheutil", "-flushcache"])
-                subprocess.run(["killall", "-HUP", "mDNSResponder"])
+            # Flush DNS cache
+            subprocess.run(["dscacheutil", "-flushcache"])
+            subprocess.run(["killall", "-HUP", "mDNSResponder"])
 
             return True
 
@@ -93,14 +72,9 @@ class SpotifyAdBlocker:
 
     def restart_spotify(self):
         if self.is_spotify_running():
-            if sys.platform == "win32":
-                subprocess.run(["taskkill", "/F", "/IM", "Spotify.exe"], shell=True)
-                time.sleep(2)
-                subprocess.Popen([os.environ["APPDATA"] + "\\Spotify\\Spotify.exe"])
-            else:
-                subprocess.run(["killall", "Spotify"])
-                time.sleep(2)
-                subprocess.run(["open", "-a", "Spotify"])
+            subprocess.run(["killall", "Spotify"])
+            time.sleep(2)
+            subprocess.run(["open", "-a", "Spotify"])
 
     def run(self):
         print("Starting Spotify Ad Blocker...")
