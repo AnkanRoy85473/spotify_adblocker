@@ -1,7 +1,6 @@
 import subprocess
 import time
 import os
-from AppKit import NSWorkspace
 import psutil
 
 class SpotifyAdBlocker:
@@ -29,9 +28,14 @@ class SpotifyAdBlocker:
         ]
 
     def is_spotify_running(self):
-        return NSWorkspace.sharedWorkspace().runningApplications().filteredArrayUsingPredicate_(
-            NSPredicate.predicateWithFormat_("bundleIdentifier == %@", self.spotify_bundle)
-        ).count() > 0
+        try:
+            # Use psutil to check if Spotify is running
+            for proc in psutil.process_iter(['name']):
+                if 'Spotify' in proc.info['name']:
+                    return True
+            return False
+        except:
+            return False
 
     def block_ads(self):
         try:
