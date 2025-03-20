@@ -1,13 +1,13 @@
 import subprocess
 import time
 import os
-from AppKit import NSWorkspace, NSPredicate
+import sys
 import psutil
 
 class SpotifyAdBlocker:
     def __init__(self):
-        self.spotify_bundle = "com.spotify.client"
-        self.hosts_path = "/etc/hosts"
+        self.spotify_bundle = "com.spotify.client" if sys.platform == "darwin" else "Spotify.exe"
+        self.hosts_path = "/etc/hosts" if sys.platform != "win32" else r"C:\Windows\System32\drivers\etc\hosts"
         self.ad_domains = [
             "adclick.g.doubleclick.net",
             "googleads.g.doubleclick.net",
@@ -37,23 +37,31 @@ class SpotifyAdBlocker:
         
     def is_spotify_running(self):
         try:
-            # Simpler method to check if Spotify is running
             processes = [p.name() for p in psutil.process_iter(['name'])]
-            return 'Spotify' in processes
+            return 'Spotify' in processes or 'Spotify.exe' in processes
         except:
             return False
 
     def block_ads(self):
         try:
-            # Check if running as root
-            if os.geteuid() != 0:
-                print("Please run this script with sudo privileges")
-                return False
+            # Check admin privileges
+            if sys.platform == "win32":
+                import ctypes
+                if not ctypes.windll.shell32.IsUserAnAdmin():
+                    print("Please run as administrator")
+                    return False
+            else:
+                if os.geteuid() != 0:
+                    print("Please run with sudo privileges")
+                    return False
 
             # Backup hosts file
-            backup_path = "/etc/hosts.backup"
+            backup_path = self.hosts_path + ".backup"
             if not os.path.exists(backup_path):
-                subprocess.run(["cp", self.hosts_path, backup_path])
+                if sys.platform == "win32":
+                    subprocess.run(["copy", self.hosts_path, backup_path], shell=True)
+                else:
+                    subprocess.run(["cp", self.hosts_path, backup_path])
 
             # Read existing hosts
             with open(self.hosts_path, 'r') as f:
@@ -70,9 +78,12 @@ class SpotifyAdBlocker:
                     f.write("\n# Spotify Ad Blocker\n")
                     f.write("\n".join(new_entries) + "\n")
 
-            # Flush DNS cache
-            subprocess.run(["dscacheutil", "-flushcache"])
-            subprocess.run(["killall", "-HUP", "mDNSResponder"])
+            # Flush DNS cache based on OS
+            if sys.platform == "win32":
+                subprocess.run(["ipconfig", "/flushdns"], shell=True)
+            else:
+                subprocess.run(["dscacheutil", "-flushcache"])
+                subprocess.run(["killall", "-HUP", "mDNSResponder"])
 
             return True
 
@@ -82,9 +93,14 @@ class SpotifyAdBlocker:
 
     def restart_spotify(self):
         if self.is_spotify_running():
-            subprocess.run(["killall", "Spotify"])
-            time.sleep(2)
-            subprocess.run(["open", "-a", "Spotify"])
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/IM", "Spotify.exe"], shell=True)
+                time.sleep(2)
+                subprocess.Popen([os.environ["APPDATA"] + "\\Spotify\\Spotify.exe"])
+            else:
+                subprocess.run(["killall", "Spotify"])
+                time.sleep(2)
+                subprocess.run(["open", "-a", "Spotify"])
 
     def run(self):
         print("Starting Spotify Ad Blocker...")
